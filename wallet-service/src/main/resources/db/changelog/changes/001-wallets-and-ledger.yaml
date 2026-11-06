@@ -1,0 +1,71 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-wallets-and-ledger
+      author: vardhankumar-mekala
+      changes:
+
+        # ---------- wallets ----------
+        - createTable:
+            tableName: wallets
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: user_id, type: BIGINT, constraints: { unique: true } }    # NULL only for the SYSTEM wallet
+              - column: { name: email, type: VARCHAR(255), constraints: { unique: true } }
+              - column: { name: wallet_type, type: VARCHAR(10), defaultValue: USER, constraints: { nullable: false } }
+              - column: { name: balance, type: "NUMERIC(19, 2)", defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: currency, type: VARCHAR(3), defaultValue: INR, constraints: { nullable: false } }
+              - column: { name: status, type: VARCHAR(20), defaultValue: ACTIVE, constraints: { nullable: false } }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+              - column: { name: updated_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+        # The database itself refuses a negative USER balance, even if application code has a bug.
+        - sql:
+            sql: >
+              ALTER TABLE wallets ADD CONSTRAINT chk_user_balance_non_negative
+              CHECK (wallet_type = 'SYSTEM' OR balance >= 0);
+        - sql:
+            sql: >
+              ALTER TABLE wallets ADD CONSTRAINT chk_user_wallet_has_owner
+              CHECK (wallet_type = 'SYSTEM' OR (user_id IS NOT NULL AND email IS NOT NULL));
+
+        # ---------- ledger_entries (append-only) ----------
+        - createTable:
+            tableName: ledger_entries
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: transaction_id, type: UUID, constraints: { nullable: false } }
+              - column: { name: wallet_id, type: BIGINT, constraints: { nullable: false, foreignKeyName: fk_ledger_wallet, references: wallets(id) } }
+              - column: { name: entry_type, type: VARCHAR(10), constraints: { nullable: false } }
+              - column: { name: amount, type: "NUMERIC(19, 2)", constraints: { nullable: false } }
+              - column: { name: balance_after, type: "NUMERIC(19, 2)", constraints: { nullable: false } }
+              - column: { name: description, type: VARCHAR(255) }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+        - sql:
+            sql: ALTER TABLE ledger_entries ADD CONSTRAINT chk_ledger_amount_positive CHECK (amount > 0);
+        - createIndex:
+            tableName: ledger_entries
+            indexName: idx_ledger_wallet_created
+            columns:
+              - column: { name: wallet_id }
+              - column: { name: created_at }
+        - createIndex:
+            tableName: ledger_entries
+            indexName: idx_ledger_transaction
+            columns:
+              - column: { name: transaction_id }
+
+        # ---------- processed_events (idempotent consumers) ----------
+        - createTable:
+            tableName: processed_events
+            columns:
+              - column: { name: event_id, type: UUID, constraints: { primaryKey: true } }
+              - column: { name: event_type, type: VARCHAR(50), constraints: { nullable: false } }
+              - column: { name: processed_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+
+        # ---------- the single SYSTEM funding wallet ----------
+        - insert:
+            tableName: wallets
+            columns:
+              - column: { name: wallet_type, value: SYSTEM }
+              - column: { name: balance, valueNumeric: 0 }
+              - column: { name: currency, value: INR }
+              - column: { name: status, value: ACTIVE }

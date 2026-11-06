@@ -1,0 +1,25 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-notifications
+      author: vardhankumar-mekala
+      changes:
+        - createTable:
+            tableName: notifications
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: event_id, type: UUID, constraints: { nullable: false } }
+              - column: { name: user_id, type: BIGINT, constraints: { nullable: false } }
+              - column: { name: message, type: VARCHAR(500), constraints: { nullable: false } }
+              - column: { name: read_at, type: TIMESTAMPTZ }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+        # one transfer event produces one notification per party; the pair (event_id, user_id) dedupes redeliveries
+        - addUniqueConstraint:
+            tableName: notifications
+            columnNames: event_id, user_id
+            constraintName: uq_notification_event_user
+        - createIndex:
+            tableName: notifications
+            indexName: idx_notification_user_created
+            columns:
+              - column: { name: user_id }
+              - column: { name: created_at }

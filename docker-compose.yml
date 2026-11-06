@@ -1,3 +1,9 @@
+x-service-env: &service-env
+  RABBITMQ_HOST: rabbitmq
+  JWT_SECRET: change-me-to-a-long-random-secret-of-at-least-32-bytes
+  DB_USERNAME: smartwallet
+  DB_PASSWORD: smartwallet
+
 services:
   postgres:
     image: postgres:16
@@ -10,6 +16,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U smartwallet"]
       interval: 5s
@@ -26,20 +33,55 @@ services:
       interval: 5s
       retries: 10
 
-  app:
-    build: .
-    container_name: smartwallet-app
+  auth-service:
+    build: { context: ., args: { MODULE: auth-service } }
+    container_name: smartwallet-auth
     depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/smartwallet
-      DB_USERNAME: smartwallet
-      DB_PASSWORD: smartwallet
-      RABBITMQ_HOST: rabbitmq
-      JWT_SECRET: change-me-to-a-long-random-secret-of-at-least-32-bytes
+      <<: *service-env
+      DB_URL: jdbc:postgresql://postgres:5432/auth_db
+      ADMIN_EMAIL: admin@smartwallet.dev
+      ADMIN_PASSWORD: Admin@12345
+    ports:
+      - "8081:8081"
+
+  wallet-service:
+    build: { context: ., args: { MODULE: wallet-service } }
+    container_name: smartwallet-wallet
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      <<: *service-env
+      DB_URL: jdbc:postgresql://postgres:5432/wallet_db
+    ports:
+      - "8082:8082"
+
+  notification-service:
+    build: { context: ., args: { MODULE: notification-service } }
+    container_name: smartwallet-notification
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    environment:
+      <<: *service-env
+      DB_URL: jdbc:postgresql://postgres:5432/notification_db
+    ports:
+      - "8083:8083"
+
+  api-gateway:
+    build: { context: ., args: { MODULE: api-gateway } }
+    container_name: smartwallet-gateway
+    depends_on:
+      - auth-service
+      - wallet-service
+      - notification-service
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:8081
+      WALLET_SERVICE_URL: http://wallet-service:8082
+      NOTIFICATION_SERVICE_URL: http://notification-service:8083
     ports:
       - "8080:8080"
 
