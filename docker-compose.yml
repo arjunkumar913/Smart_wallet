@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: smartwallet-postgres
+    environment:
+      POSTGRES_DB: smartwallet
+      POSTGRES_USER: smartwallet
+      POSTGRES_PASSWORD: smartwallet
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartwallet"]
+      interval: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: smartwallet-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: smartwallet-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/smartwallet
+      DB_USERNAME: smartwallet
+      DB_PASSWORD: smartwallet
+      RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: change-me-to-a-long-random-secret-of-at-least-32-bytes
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:

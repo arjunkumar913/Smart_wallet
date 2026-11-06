@@ -1,0 +1,76 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-initial-schema
+      author: vardhankumar-mekala
+      changes:
+
+        # ---------- users ----------
+        - createTable:
+            tableName: users
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: email, type: VARCHAR(255), constraints: { nullable: false, unique: true } }
+              - column: { name: password_hash, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: role, type: VARCHAR(20), constraints: { nullable: false } }       # USER | ADMIN
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+
+        # ---------- wallets (one per user) ----------
+        - createTable:
+            tableName: wallets
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: user_id, type: BIGINT, constraints: { nullable: false, unique: true, foreignKeyName: fk_wallet_user, references: users(id) } }
+              - column: { name: balance, type: NUMERIC(19,2), defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: currency, type: VARCHAR(3), defaultValue: INR, constraints: { nullable: false } }
+              - column: { name: status, type: VARCHAR(20), defaultValue: ACTIVE, constraints: { nullable: false } }   # ACTIVE | FROZEN
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+              - column: { name: updated_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+        - sql:
+            sql: ALTER TABLE wallets ADD CONSTRAINT chk_wallet_balance_non_negative CHECK (balance >= 0);
+
+        # ---------- ledger_entries (append-only) ----------
+        - createTable:
+            tableName: ledger_entries
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: transaction_id, type: UUID, constraints: { nullable: false } }    # groups DEBIT + CREDIT pair
+              - column: { name: wallet_id, type: BIGINT, constraints: { nullable: false, foreignKeyName: fk_ledger_wallet, references: wallets(id) } }
+              - column: { name: entry_type, type: VARCHAR(10), constraints: { nullable: false } } # DEBIT | CREDIT
+              - column: { name: amount, type: NUMERIC(19,2), constraints: { nullable: false } }
+              - column: { name: balance_after, type: NUMERIC(19,2), constraints: { nullable: false } }
+              - column: { name: description, type: VARCHAR(255) }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+        - sql:
+            sql: ALTER TABLE ledger_entries ADD CONSTRAINT chk_ledger_amount_positive CHECK (amount > 0);
+        - createIndex:
+            tableName: ledger_entries
+            indexName: idx_ledger_wallet_created
+            columns:
+              - column: { name: wallet_id }
+              - column: { name: created_at }
+
+        # ---------- idempotency_keys ----------
+        - createTable:
+            tableName: idempotency_keys
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: idempotency_key, type: VARCHAR(100), constraints: { nullable: false } }
+              - column: { name: user_id, type: BIGINT, constraints: { nullable: false, foreignKeyName: fk_idem_user, references: users(id) } }
+              - column: { name: request_hash, type: VARCHAR(64), constraints: { nullable: false } }
+              - column: { name: response_body, type: TEXT }
+              - column: { name: response_status, type: INT }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+        - addUniqueConstraint:
+            tableName: idempotency_keys
+            columnNames: user_id, idempotency_key
+            constraintName: uq_idem_user_key
+
+        # ---------- notifications ----------
+        - createTable:
+            tableName: notifications
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: event_id, type: UUID, constraints: { nullable: false, unique: true } }   # dedupe for idempotent consumer
+              - column: { name: user_id, type: BIGINT, constraints: { nullable: false, foreignKeyName: fk_notif_user, references: users(id) } }
+              - column: { name: message, type: VARCHAR(500), constraints: { nullable: false } }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
