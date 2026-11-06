@@ -1,5 +1,5 @@
 server:
-  port: 8081
+  port: ${PORT:8081}       # Render (and most clouds) inject PORT
 
 spring:
   application:
@@ -26,8 +26,8 @@ app:
     secret: ${JWT_SECRET:change-me-to-a-long-random-secret-of-at-least-32-bytes}
     expiration-minutes: 60
   admin:
-    email: ${ADMIN_EMAIL:admin@smartwallet.dev}
-    password: ${ADMIN_PASSWORD:Admin@12345}
+    email: ${ADMIN_EMAIL:}            # empty = no admin bootstrap; set it per environment
+    password: ${ADMIN_PASSWORD:}
 
 management:
   endpoints:

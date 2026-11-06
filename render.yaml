@@ -1,0 +1,93 @@
+# Render Blueprint: deploys all four services as free Docker web services.
+# Secrets marked "sync: false" are NOT stored in git; Render asks for them in the dashboard.
+#   Databases: Neon (free Postgres)   ·   Broker: CloudAMQP (free RabbitMQ)
+# See DEPLOYMENT.md for the step-by-step setup.
+
+envVarGroups:
+  - name: smartwallet-shared
+    envVars:
+      # One random secret, generated once by Render and shared, so every service trusts the same JWTs
+      - key: JWT_SECRET
+        generateValue: true
+      # Keep connection usage small: Neon free plan + 3 services
+      - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+        value: "3"
+
+services:
+  - type: web
+    name: smartwallet-auth
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerContext: .
+    dockerfilePath: ./deploy/auth-service.Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: smartwallet-shared
+      - key: DB_URL                      # jdbc:postgresql://<neon-host>/auth_db?sslmode=require
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SPRING_RABBITMQ_ADDRESSES   # amqps://user:pass@host/vhost from CloudAMQP
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: smartwallet-wallet
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerContext: .
+    dockerfilePath: ./deploy/wallet-service.Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: smartwallet-shared
+      - key: DB_URL                      # jdbc:postgresql://<neon-host>/wallet_db?sslmode=require
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SPRING_RABBITMQ_ADDRESSES
+        sync: false
+
+  - type: web
+    name: smartwallet-notification
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerContext: .
+    dockerfilePath: ./deploy/notification-service.Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - fromGroup: smartwallet-shared
+      - key: DB_URL                      # jdbc:postgresql://<neon-host>/notification_db?sslmode=require
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SPRING_RABBITMQ_ADDRESSES
+        sync: false
+
+  - type: web
+    name: smartwallet-gateway
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerContext: .
+    dockerfilePath: ./deploy/api-gateway.Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      # Public URLs of the three services, e.g. https://smartwallet-auth.onrender.com (filled in after first deploy)
+      - key: AUTH_SERVICE_URL
+        sync: false
+      - key: WALLET_SERVICE_URL
+        sync: false
+      - key: NOTIFICATION_SERVICE_URL
+        sync: false
