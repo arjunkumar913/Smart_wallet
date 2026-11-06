@@ -9,6 +9,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import jakarta.validation.ConstraintViolationException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -34,6 +37,18 @@ public class GlobalExceptionHandler {
                 .forEach(err -> fields.putIfAbsent(err.getField(), err.getDefaultMessage()));
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse("VALIDATION_FAILED", "Request validation failed", Instant.now(), fields));
+    }
+
+    /** Invalid query/path parameters, e.g. ?size=1000 when the maximum is 100. */
+    @ExceptionHandler({ConstraintViolationException.class, HandlerMethodValidationException.class})
+    public ResponseEntity<ErrorResponse> handleParameterValidation(Exception ex) {
+        return ResponseEntity.badRequest().body(ErrorResponse.of("INVALID_PARAMETER", "One or more parameters are invalid"));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of("INVALID_PARAMETER", "Parameter '" + ex.getName() + "' has an invalid value"));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

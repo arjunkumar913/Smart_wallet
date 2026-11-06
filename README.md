@@ -90,6 +90,7 @@ sequenceDiagram
 - **Pessimistic locking in id order.** Wallet rows are locked with `SELECT ... FOR UPDATE` in ascending id order, which prevents lost updates *and* deadlocks.
 - **Idempotency keys backed by a unique index.** A retry with the same key returns the stored response; a *concurrent* duplicate blocks on the unique index and fails once the first commits, so two identical requests can never both move money. Reusing a key for a different request is rejected (409).
 - **Shared messaging topology.** Every service declares all exchanges, queues and DLQs on connect. Without this, an event published before its consumer had ever started had no queue and was silently dropped (found and fixed during development).
+- **Freeze takes the same row lock as transfers.** A freeze waits for any in-flight transfer on that wallet, and every later transfer sees it frozen, so there is no window where money moves out of a frozen wallet.
 - **Defense in depth.** The database itself rejects negative user balances (`CHECK` constraint), even if application code has a bug.
 
 ---
@@ -104,9 +105,9 @@ sequenceDiagram
 | 4 | **Idempotent transfers** via `Idempotency-Key` header, incl. concurrent duplicates | ✅ Done |
 | 5 | **Concurrency safety** — pessimistic locking in id order, verified with 100 parallel transfers | ✅ Done |
 | 6 | Transfer rules — insufficient funds, limit, self-transfer & frozen-wallet blocking | ✅ Done |
-| 7 | Paginated transaction history with date filters | 🚧 Day 3 |
-| 8 | `TransferCompleted` events, idempotent notification consumer, DLQ | 🚧 Day 3 |
-| 9 | Admin APIs to freeze / unfreeze wallets | 🚧 Day 3 |
+| 7 | Paginated transaction history with date filters | ✅ Done |
+| 8 | `TransferCompleted` events, idempotent notification consumer, DLQ | ✅ Done |
+| 9 | Admin APIs to list, freeze / unfreeze wallets (SYSTEM wallet protected) | ✅ Done |
 | 10 | Liquibase, OpenAPI per service, tests, Docker Compose, live deployment | 🚧 Ongoing |
 
 ---
@@ -127,9 +128,11 @@ Java 21 · Spring Boot 3.3 · Spring Cloud Gateway · Spring Security (JWT) · S
 | GET | `/api/wallets/me` | My wallet & balance | USER |
 | POST | `/api/wallets/me/top-up` | Simulated top-up | USER |
 | POST | `/api/transfers` | P2P transfer by recipient email (`Idempotency-Key` required) | USER |
-| GET | `/api/transfers/history` | Paginated history | USER — Day 3 |
-| GET | `/api/notifications` | My notifications | USER — Day 3 |
-| POST | `/api/admin/wallets/{id}/freeze` · `/unfreeze` | Freeze / unfreeze | ADMIN — Day 3 |
+| GET | `/api/wallets/me/transactions?from=&to=&page=&size=` | Paginated history (dates inclusive, UTC) | USER |
+| GET | `/api/notifications` · `/unread-count` | My notifications, newest first | USER |
+| POST | `/api/notifications/{id}/read` | Mark as read | USER |
+| GET | `/api/admin/wallets` · `/{id}` | List / inspect wallets | ADMIN |
+| POST | `/api/admin/wallets/{id}/freeze` · `/unfreeze` | Freeze / unfreeze | ADMIN |
 
 Swagger UI per service: `http://localhost:8081/swagger-ui.html`, `:8082`, `:8083`.
 
@@ -167,6 +170,8 @@ Run all tests: `mvn test` (Docker must be running: integration tests start a rea
 | Same key sent 10 times concurrently | Exactly one debit |
 | Same key, different amount | Rejected with 409 |
 | Sum of all wallet balances after every test | Always exactly 0 |
+| HTTP: no token / bad token / USER on admin API | 401 / 401 / 403 (`WalletApiIntegrationTest`) |
+| Frozen wallet tries to send; admin unfreezes | 422 `WALLET_FROZEN`, then transfer succeeds |
 
 Default admin (local only): `admin@smartwallet.dev` / `Admin@12345` · RabbitMQ UI: `http://localhost:15672` (guest / guest)
 
@@ -176,7 +181,7 @@ Default admin (local only): `admin@smartwallet.dev` / `Admin@12345` · RabbitMQ 
 
 - [x] Day 1 — Microservice structure, shared library, JWT auth, event-driven wallet creation, top-ups with double-entry ledger
 - [x] Day 2 — Transfers with idempotency keys, transfer rules, concurrency tests (100 parallel transfers), messaging race fix
-- [ ] Day 3 — TransferCompleted events → notifications, DLQ, admin freeze, history API
+- [x] Day 3 — TransferCompleted events → notifications, DLQ, admin freeze, history API
 - [ ] Live deployment
 - [ ] Later — transactional outbox, rate limiting at the gateway
 

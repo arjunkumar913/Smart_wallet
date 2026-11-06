@@ -2,20 +2,11 @@ package com.vardhan.wallet.transfer;
 
 import com.vardhan.common.events.EventTopology;
 import com.vardhan.common.web.BusinessException;
+import com.vardhan.wallet.IntegrationTestBase;
 import com.vardhan.wallet.wallet.Wallet;
-import com.vardhan.wallet.wallet.WalletRepository;
-import com.vardhan.wallet.wallet.WalletService;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -28,7 +19,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntFunction;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,36 +29,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
- * Runs the real TransferService against a real PostgreSQL (Testcontainers), because
- * row locks, unique indexes and transaction isolation only behave like production on a real database.
- * RabbitMQ is replaced by a mock: these tests are about money correctness, not messaging.
- *
- * Requires Docker to be running.
+ * Runs the real TransferService against a real PostgreSQL, because row locks, unique indexes and
+ * transaction isolation only behave like production on a real database (see IntegrationTestBase).
  */
-@SpringBootTest(properties = {  // default MOCK web environment: full security config, no real server
-        "spring.rabbitmq.listener.simple.auto-startup=false",
-        "spring.rabbitmq.dynamic=false"
-})
-@Testcontainers
-class TransferServiceIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16");
-
-    private static final AtomicLong USER_IDS = new AtomicLong(1_000);
-
-    @MockBean
-    RabbitTemplate rabbitTemplate;
+class TransferServiceIntegrationTest extends IntegrationTestBase {
 
     @Autowired
     TransferService transferService;
-    @Autowired
-    WalletService walletService;
-    @Autowired
-    WalletRepository walletRepository;
-    @Autowired
-    JdbcTemplate jdbc;
 
     // ---------------------------------------------------------------- concurrency
 
@@ -193,25 +160,12 @@ class TransferServiceIntegrationTest {
 
     // ---------------------------------------------------------------- helpers
 
-    private Wallet newWallet(String name, String topUp) {
-        long userId = USER_IDS.incrementAndGet();
-        walletRepository.save(Wallet.forUser(userId, name + userId + "@test.dev"));
-        if (topUp != null) {
-            walletService.topUp(userId, new BigDecimal(topUp));
-        }
-        return walletRepository.findByUserId(userId).orElseThrow();
-    }
-
     private TransferResult send(Wallet from, Wallet to, String amount) {
         return transferService.transfer(from.getUserId(), UUID.randomUUID().toString(), request(to, amount));
     }
 
     private static TransferRequest request(Wallet to, String amount) {
         return new TransferRequest(to.getEmail(), new BigDecimal(amount), null);
-    }
-
-    private BigDecimal balanceOf(Wallet wallet) {
-        return walletRepository.findById(wallet.getId()).orElseThrow().getBalance();
     }
 
     private long ledgerRows(Wallet wallet) {
