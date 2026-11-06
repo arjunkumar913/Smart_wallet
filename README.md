@@ -52,6 +52,30 @@ sequenceDiagram
     W->>W: Skip if eventId already processed, else create wallet
 ```
 
+### Transfer flow (one ACID transaction inside wallet-service)
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant W as wallet-service
+    participant DB as wallet_db
+    participant MQ as RabbitMQ
+
+    C->>W: POST /api/transfers (Idempotency-Key)
+    W->>DB: Key already completed?
+    alt Same key, same request
+        DB-->>W: stored response
+        W-->>C: 201 original response (Idempotent-Replayed: true), no money moved
+    else New key
+        W->>DB: BEGIN; INSERT idempotency key (unique index blocks concurrent duplicates)
+        W->>DB: SELECT ... FOR UPDATE both wallets, lower id first
+        W->>DB: check rules: limit, self-transfer, frozen, sufficient funds
+        W->>DB: DEBIT sender + CREDIT recipient (ledger pair), store response; COMMIT
+        W->>MQ: TransferCompleted (after commit)
+        W-->>C: 201 Created
+    end
+```
+
 ---
 
 ## 🧠 Key Design Decisions
@@ -64,6 +88,8 @@ sequenceDiagram
 - **Stateless JWT.** auth-service signs tokens; every service verifies them with the shared secret, so there is no auth round-trip per request, and a request that bypasses the gateway is still rejected.
 - **Double-entry ledger with a SYSTEM wallet.** Top-ups move money *from* a SYSTEM funding wallet, so every movement is a balanced DEBIT + CREDIT pair and **the sum of all balances is always zero**.
 - **Pessimistic locking in id order.** Wallet rows are locked with `SELECT ... FOR UPDATE` in ascending id order, which prevents lost updates *and* deadlocks.
+- **Idempotency keys backed by a unique index.** A retry with the same key returns the stored response; a *concurrent* duplicate blocks on the unique index and fails once the first commits, so two identical requests can never both move money. Reusing a key for a different request is rejected (409).
+- **Shared messaging topology.** Every service declares all exchanges, queues and DLQs on connect. Without this, an event published before its consumer had ever started had no queue and was silently dropped (found and fixed during development).
 - **Defense in depth.** The database itself rejects negative user balances (`CHECK` constraint), even if application code has a bug.
 
 ---
@@ -74,10 +100,10 @@ sequenceDiagram
 |---|---------|--------|
 | 1 | JWT authentication with `USER` / `ADMIN` roles, admin bootstrap | ✅ Done |
 | 2 | Wallet auto-created from `UserRegistered` event, balance check, simulated top-up | ✅ Done |
-| 3 | Append-only **double-entry ledger** (DEBIT + CREDIT in one DB transaction) | ✅ Done (top-ups) · 🚧 transfers |
-| 4 | **Idempotent transfers** via `Idempotency-Key` header | 🚧 Day 2 |
-| 5 | **Concurrency safety** — pessimistic locking with ordered lock acquisition | ✅ Locking in place · 🚧 parallel test |
-| 6 | Transfer rules — insufficient funds, limit, self-transfer & frozen-wallet blocking | 🚧 Day 2 |
+| 3 | Append-only **double-entry ledger** (DEBIT + CREDIT in one DB transaction) | ✅ Done |
+| 4 | **Idempotent transfers** via `Idempotency-Key` header, incl. concurrent duplicates | ✅ Done |
+| 5 | **Concurrency safety** — pessimistic locking in id order, verified with 100 parallel transfers | ✅ Done |
+| 6 | Transfer rules — insufficient funds, limit, self-transfer & frozen-wallet blocking | ✅ Done |
 | 7 | Paginated transaction history with date filters | 🚧 Day 3 |
 | 8 | `TransferCompleted` events, idempotent notification consumer, DLQ | 🚧 Day 3 |
 | 9 | Admin APIs to freeze / unfreeze wallets | 🚧 Day 3 |
@@ -100,7 +126,7 @@ Java 21 · Spring Boot 3.3 · Spring Cloud Gateway · Spring Security (JWT) · S
 | GET | `/api/auth/me` | Identity from token | USER |
 | GET | `/api/wallets/me` | My wallet & balance | USER |
 | POST | `/api/wallets/me/top-up` | Simulated top-up | USER |
-| POST | `/api/transfers` | P2P transfer by recipient email (`Idempotency-Key` required) | USER — Day 2 |
+| POST | `/api/transfers` | P2P transfer by recipient email (`Idempotency-Key` required) | USER |
 | GET | `/api/transfers/history` | Paginated history | USER — Day 3 |
 | GET | `/api/notifications` | My notifications | USER — Day 3 |
 | POST | `/api/admin/wallets/{id}/freeze` · `/unfreeze` | Freeze / unfreeze | ADMIN — Day 3 |
@@ -129,7 +155,18 @@ mvn -pl notification-service spring-boot:run
 mvn -pl api-gateway spring-boot:run
 ```
 
-Run all tests: `mvn test`
+Run all tests: `mvn test` (Docker must be running: integration tests start a real PostgreSQL with Testcontainers)
+
+### Tested guarantees (`TransferServiceIntegrationTest`, real PostgreSQL)
+
+| Scenario | Result |
+|---|---|
+| 100 transfers in both directions between the same two wallets, all at once | No deadlock, no lost update, balances exact |
+| 20 parallel ₹10 transfers from a ₹100 balance | Exactly 10 succeed, 10 rejected, balance never negative |
+| Same `Idempotency-Key` sent twice | Money moves once; retry gets the original response |
+| Same key sent 10 times concurrently | Exactly one debit |
+| Same key, different amount | Rejected with 409 |
+| Sum of all wallet balances after every test | Always exactly 0 |
 
 Default admin (local only): `admin@smartwallet.dev` / `Admin@12345` · RabbitMQ UI: `http://localhost:15672` (guest / guest)
 
@@ -138,10 +175,10 @@ Default admin (local only): `admin@smartwallet.dev` / `Admin@12345` · RabbitMQ 
 ## 🗺️ Roadmap
 
 - [x] Day 1 — Microservice structure, shared library, JWT auth, event-driven wallet creation, top-ups with double-entry ledger
-- [ ] Day 2 — Transfers with idempotency keys, transfer rules, concurrency test (100 parallel transfers)
+- [x] Day 2 — Transfers with idempotency keys, transfer rules, concurrency tests (100 parallel transfers), messaging race fix
 - [ ] Day 3 — TransferCompleted events → notifications, DLQ, admin freeze, history API
 - [ ] Live deployment
-- [ ] Later — transactional outbox, Testcontainers integration tests, rate limiting at the gateway
+- [ ] Later — transactional outbox, rate limiting at the gateway
 
 ---
 

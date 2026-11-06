@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-idempotency-keys
+      author: vardhankumar-mekala
+      changes:
+        - createTable:
+            tableName: idempotency_keys
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: user_id, type: BIGINT, constraints: { nullable: false } }
+              - column: { name: idempotency_key, type: VARCHAR(100), constraints: { nullable: false } }
+              - column: { name: request_hash, type: VARCHAR(64), constraints: { nullable: false } }
+              - column: { name: response_body, type: TEXT }
+              - column: { name: response_status, type: INT }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+        # The unique index is what makes concurrent duplicates safe: the second insert waits, then fails.
+        - addUniqueConstraint:
+            tableName: idempotency_keys
+            columnNames: user_id, idempotency_key
+            constraintName: uq_idempotency_user_key

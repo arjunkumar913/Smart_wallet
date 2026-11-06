@@ -13,4 +13,4 @@ FROM eclipse-temurin:21-jre
 ARG MODULE
 WORKDIR /app
 COPY --from=build /app/${MODULE}/target/${MODULE}.jar app.jar
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Duser.timezone=UTC", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

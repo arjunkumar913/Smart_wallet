@@ -2,7 +2,6 @@ package com.vardhan.wallet.events;
 
 import com.vardhan.common.events.EventTopology;
 import com.vardhan.common.events.UserRegisteredEvent;
-import com.vardhan.wallet.config.WalletMessagingConfig;
 import com.vardhan.wallet.wallet.Wallet;
 import com.vardhan.wallet.wallet.WalletRepository;
 import org.slf4j.Logger;
@@ -29,7 +28,7 @@ public class UserRegisteredListener {
         this.processedEventRepository = processedEventRepository;
     }
 
-    @RabbitListener(queues = WalletMessagingConfig.USER_REGISTERED_QUEUE)
+    @RabbitListener(queues = EventTopology.WALLET_USER_REGISTERED_QUEUE)
     @Transactional
     public void onUserRegistered(UserRegisteredEvent event) {
         if (processedEventRepository.existsById(event.eventId())) {
