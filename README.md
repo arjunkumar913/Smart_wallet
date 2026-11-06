@@ -2,7 +2,16 @@
 
 A digital wallet backend built as **Spring Boot microservices** (Java 21), focused on the hard parts of payment systems: **double-entry ledgering, idempotent transfers, concurrency safety, and event-driven communication over RabbitMQ**.
 
-> 🚧 **Status: In active development.** See the feature table and roadmap below.
+## 🌐 Live demo
+
+| | URL |
+|---|---|
+| API gateway (single entry point) | https://smartwallet-gateway-a2lr.onrender.com |
+| Swagger — auth-service | https://smartwallet-auth-a2lr.onrender.com/swagger-ui.html |
+| Swagger — wallet-service | https://smartwallet-wallet-a2lr.onrender.com/swagger-ui.html |
+| Swagger — notification-service | https://smartwallet-notification-a2lr.onrender.com/swagger-ui.html |
+
+Hosted on free tiers (Render · Neon PostgreSQL · CloudAMQP): services sleep when idle, so **the first request can take about a minute** while they wake. Try it: register in the auth Swagger, copy the `accessToken`, click **Authorize** in the wallet Swagger, then top up and transfer. Details in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
@@ -108,7 +117,7 @@ sequenceDiagram
 | 7 | Paginated transaction history with date filters | ✅ Done |
 | 8 | `TransferCompleted` events, idempotent notification consumer, DLQ | ✅ Done |
 | 9 | Admin APIs to list, freeze / unfreeze wallets (SYSTEM wallet protected) | ✅ Done |
-| 10 | Liquibase, OpenAPI per service, tests, Docker Compose, live deployment | 🚧 Ongoing |
+| 10 | Liquibase, OpenAPI per service, 32 automated tests, Docker Compose, live cloud deployment | ✅ Done |
 
 ---
 
@@ -182,7 +191,7 @@ Default admin (local only): `admin@smartwallet.dev` / `Admin@12345` · RabbitMQ 
 - [x] Day 1 — Microservice structure, shared library, JWT auth, event-driven wallet creation, top-ups with double-entry ledger
 - [x] Day 2 — Transfers with idempotency keys, transfer rules, concurrency tests (100 parallel transfers), messaging race fix
 - [x] Day 3 — TransferCompleted events → notifications, DLQ, admin freeze, history API
-- [ ] Live deployment
+- [x] Day 4 — Live deployment (Render Blueprint, Neon, CloudAMQP)
 - [ ] Later — transactional outbox, rate limiting at the gateway
 
 ---
