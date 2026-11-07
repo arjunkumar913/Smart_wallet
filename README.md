@@ -76,10 +76,10 @@ sequenceDiagram
         DB-->>W: stored response
         W-->>C: 201 original response (Idempotent-Replayed: true), no money moved
     else New key
-        W->>DB: BEGIN; INSERT idempotency key (unique index blocks concurrent duplicates)
+        W->>DB: BEGIN, INSERT idempotency key (unique index blocks concurrent duplicates)
         W->>DB: SELECT ... FOR UPDATE both wallets, lower id first
         W->>DB: check rules: limit, self-transfer, frozen, sufficient funds
-        W->>DB: DEBIT sender + CREDIT recipient (ledger pair), store response; COMMIT
+        W->>DB: DEBIT sender + CREDIT recipient (ledger pair), store response, COMMIT
         W->>MQ: TransferCompleted (after commit)
         W-->>C: 201 Created
     end
