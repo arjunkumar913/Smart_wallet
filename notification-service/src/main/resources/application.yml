@@ -55,3 +55,8 @@ management:
     web:
       exposure:
         include: health
+      # The website pings /actuator/health on every service directly to wake them all at once (free hosting
+      # puts idle services to sleep). Health only says UP or DOWN, so any origin may read it, GET only.
+      cors:
+        allowed-origin-patterns: "*"
+        allowed-methods: GET

@@ -128,6 +128,47 @@ ol, ul { padding: 0; list-style: none; }
     rgba(150, 160, 255, 0.07) 58%, transparent 70%);
 }
 
+.servers {
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--wait);
+  border-radius: var(--radius);
+  background: var(--paper);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 0.875rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.servers.ready { border-left-color: var(--deposit); }
+.servers-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.servers-count { color: var(--ink-soft); font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.servers-note { color: var(--ink-soft); font-size: var(--step--1); margin: 0.25rem 0 0.75rem; max-width: 60ch; }
+.servers-list { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; font-size: var(--step--1); }
+.servers-list li { display: inline-flex; align-items: center; gap: 0.45rem; }
+.servers-list .dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--wait);
+  animation: waking 1.2s ease-in-out infinite;
+}
+.servers-list li.is-up .dot { background: var(--deposit); animation: none; box-shadow: 0 0 8px rgba(95, 224, 168, 0.6); }
+.servers-list li.is-failed .dot { background: var(--withdraw); animation: none; }
+@keyframes waking { 50% { opacity: 0.3; } }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .waking {
   background: var(--tint-wait);
   color: var(--wait);

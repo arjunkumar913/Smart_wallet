@@ -6,6 +6,7 @@ import AddMoney from './views/AddMoney.jsx';
 import TopUp from './views/TopUp.jsx';
 import SendMoney from './views/SendMoney.jsx';
 import Starfield from './Starfield.jsx';
+import ServerStatus from './ServerStatus.jsx';
 
 const SESSION_KEY = 'smart-wallet-session';
 
@@ -36,6 +37,7 @@ export default function App() {
   const [view, setView] = useState({ name: 'home' });
   const [notice, setNotice] = useState(null);
   const [slow, setSlow] = useState(false);
+  const [serversReady, setServersReady] = useState(true);
 
   const signOut = useCallback((message = null) => {
     setToken(null);
@@ -81,7 +83,9 @@ export default function App() {
         )}
       </header>
 
-      {slow && (
+      <ServerStatus onReadyChange={setServersReady} />
+
+      {slow && serversReady && (
         <p className="waking" role="status">
           Waking the server. It sleeps when nobody is using it, so the first request can take up to a minute.
         </p>

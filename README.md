@@ -15,8 +15,8 @@ A digital wallet built as **Spring Boot microservices** (Java 21) with a small *
 3. **Send money:** open the same link in an incognito window, open a second demo account, and copy its email from the
    top-right corner. Back in the first window, **Send money** to that email. Both passbooks and both **Alerts** tabs update.
 
-> Hosted on free tiers (Render · Neon PostgreSQL · CloudAMQP). Services sleep when idle, so **the first visit can take
-> 2–3 minutes** while they wake. If you see "The server is still starting", wait a moment and click **Try again**.
+> Hosted on free tiers (Render · Neon PostgreSQL · CloudAMQP). Services sleep when idle; the site wakes all four at
+> once and shows their progress, so **the first visit takes about a minute**.
 
 | For developers | URL |
 |---|---|
@@ -205,6 +205,7 @@ sequenceDiagram
 - **Safe with several instances.** The dispatcher claims emails with `FOR UPDATE SKIP LOCKED` and a lease, so two instances never send the same email, and an email claimed by an instance that crashed is picked up again when its lease runs out. Delivery is at-least-once: the one window for a duplicate is a crash after the provider accepted the email but before it was marked sent.
 - **Retry only what can succeed.** Timeouts, 429 and 5xx are retried with exponential backoff; a rejected address or bad API key fails at once, so the provider is not hammered with requests that will fail again.
 - **Email over HTTPS, not SMTP.** Many free hosts (Render included) block outgoing SMTP ports, so real emails go through Brevo's HTTPS API. Locally the default sender just prints each email to the console.
+- **Fast cold starts on tiny free instances.** Each image is built with a CDS archive: the app is started once at build time (with the database and RabbitMQ switched off) and the classes it loaded are saved, so the JVM maps them at boot instead of loading and verifying them again. Together with the C1-only JIT (`-XX:TieredStopAtLevel=1`), startup is about 3× faster (wallet-service: 18 s → 6 s on one CPU core). The website also pings every service's health check in parallel on load, so sleeping services boot together instead of one after another.
 - **Payment gateway behind an interface.** `PaymentGateway` has two implementations (Razorpay over plain REST, and the demo bank), chosen by one property, so the settlement logic is tested end to end without network access or secrets.
 
 ---

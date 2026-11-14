@@ -3,3 +3,7 @@
 .idea/
 .vscode/
 *.iml
+
+# Frontend (built separately as a static site)
+frontend/node_modules/
+frontend/dist/
