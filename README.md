@@ -4,8 +4,30 @@ A digital wallet built as **Spring Boot microservices** (Java 21) with a small *
 
 ## 🌐 Live demo
 
-| | URL |
+### 👉 **[smartwallet-web-a2lr.onrender.com](https://smartwallet-web-a2lr.onrender.com)**
+
+**Try it in two minutes, no sign-up:**
+
+1. Open the link and click **Open a demo account**. You get a fresh wallet with ₹0.
+2. **Add money** → pick an amount → **Approve payment** on the Demo Bank page (no real money moves). Also try
+   **Decline**, and **"Approve, but lose the bank's confirmation message"**: the wallet notices on its own and still
+   credits you exactly once.
+3. **Send money:** open the same link in an incognito window, open a second demo account, and copy its email from the
+   top-right corner. Back in the first window, **Send money** to that email. Both passbooks and both **Alerts** tabs update.
+
+> Hosted on free tiers (Render · Neon PostgreSQL · CloudAMQP). Services sleep when idle, so **the first visit can take
+> 2–3 minutes** while they wake. If you see "The server is still starting", wait a moment and click **Try again**.
+
+| For developers | URL |
 |---|---|
+| API gateway (single entry point) | https://smartwallet-gateway-a2lr.onrender.com |
+| Swagger — auth-service | https://smartwallet-auth-a2lr.onrender.com/swagger-ui.html |
+| Swagger — wallet-service | https://smartwallet-wallet-a2lr.onrender.com/swagger-ui.html |
+| Swagger — notification-service | https://smartwallet-notification-a2lr.onrender.com/swagger-ui.html |
+
+Deployment details in [DEPLOYMENT.md](DEPLOYMENT.md).
+
+---|---|
 | API gateway (single entry point) | https://smartwallet-gateway-a2lr.onrender.com |
 | Swagger — auth-service | https://smartwallet-auth-a2lr.onrender.com/swagger-ui.html |
 | Swagger — wallet-service | https://smartwallet-wallet-a2lr.onrender.com/swagger-ui.html |
