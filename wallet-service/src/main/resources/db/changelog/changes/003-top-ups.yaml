@@ -1,0 +1,53 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-top-ups
+      author: vardhankumar-mekala
+      changes:
+        - createTable:
+            tableName: top_ups
+            columns:
+              - column: { name: id, type: UUID, constraints: { primaryKey: true } }
+              - column: { name: user_id, type: BIGINT, constraints: { nullable: false } }
+              - column: { name: wallet_id, type: BIGINT, constraints: { nullable: false, foreignKeyName: fk_top_up_wallet, references: wallets(id) } }
+              - column: { name: amount, type: "NUMERIC(19, 2)", constraints: { nullable: false } }
+              - column: { name: currency, type: VARCHAR(3), constraints: { nullable: false } }
+              - column: { name: status, type: VARCHAR(20), constraints: { nullable: false } }
+              - column: { name: provider, type: VARCHAR(20), constraints: { nullable: false } }
+              - column: { name: provider_order_id, type: VARCHAR(100) }
+              - column: { name: provider_payment_id, type: VARCHAR(100) }
+              - column: { name: payment_method, type: VARCHAR(30) }
+              - column: { name: transaction_id, type: UUID }          # the ledger transaction that credited the wallet
+              - column: { name: failure_reason, type: VARCHAR(255) }
+              - column: { name: idempotency_key, type: VARCHAR(100), constraints: { nullable: false } }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+              - column: { name: updated_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+              - column: { name: completed_at, type: TIMESTAMPTZ }
+        - sql:
+            sql: ALTER TABLE top_ups ADD CONSTRAINT chk_top_up_amount_positive CHECK (amount > 0);
+        # A retried "create top-up" request can never create a second gateway order.
+        - addUniqueConstraint:
+            tableName: top_ups
+            columnNames: user_id, idempotency_key
+            constraintName: uq_top_up_user_key
+        # One gateway order belongs to exactly one top-up, and one payment can settle only one top-up.
+        # (PostgreSQL unique constraints allow many NULLs, so unpaid rows are fine.)
+        - addUniqueConstraint:
+            tableName: top_ups
+            columnNames: provider_order_id
+            constraintName: uq_top_up_provider_order
+        - addUniqueConstraint:
+            tableName: top_ups
+            columnNames: provider_payment_id
+            constraintName: uq_top_up_provider_payment
+        # Defense in depth: a top-up is SUCCESS if and only if it points at the ledger transaction that credited it.
+        - sql:
+            sql: >
+              ALTER TABLE top_ups ADD CONSTRAINT chk_top_up_success_has_ledger_entry
+              CHECK ((status = 'SUCCESS') = (transaction_id IS NOT NULL));
+        # The reconciliation job scans by (status, created_at).
+        - createIndex:
+            tableName: top_ups
+            indexName: idx_top_up_status_created
+            columns:
+              - column: { name: status }
+              - column: { name: created_at }

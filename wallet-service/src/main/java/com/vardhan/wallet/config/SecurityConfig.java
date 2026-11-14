@@ -15,6 +15,8 @@ public class SecurityConfig {
         SecurityDefaults.apply(http, jwtService)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(SecurityDefaults.PUBLIC_DOC_PATHS).permitAll()
+                        // called by the payment gateway, which has no JWT: authenticated by HMAC signature instead
+                        .requestMatchers("/api/webhooks/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated());
         return http.build();

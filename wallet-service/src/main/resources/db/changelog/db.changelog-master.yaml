@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/changes/001-wallets-and-ledger.yaml
   - include:
       file: db/changelog/changes/002-idempotency-keys.yaml
+  - include:
+      file: db/changelog/changes/003-top-ups.yaml

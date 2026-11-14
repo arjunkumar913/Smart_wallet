@@ -1,4 +1,4 @@
-# Render Blueprint: deploys all four services as free Docker web services.
+# Render Blueprint: deploys all four services as free Docker web services, plus the React frontend as a static site.
 # Secrets marked "sync: false" are NOT stored in git; Render asks for them in the dashboard.
 #   Databases: Neon (free Postgres)   ·   Broker: CloudAMQP (free RabbitMQ)
 # See DEPLOYMENT.md for the step-by-step setup.
@@ -55,6 +55,15 @@ services:
         sync: false
       - key: SPRING_RABBITMQ_ADDRESSES
         sync: false
+      # "mock" = built-in demo bank (no account needed). "razorpay" = Razorpay checkout; then the three keys below are required.
+      - key: PAYMENT_PROVIDER
+        value: mock
+      - key: RAZORPAY_KEY_ID             # rzp_test_... (public)
+        sync: false
+      - key: RAZORPAY_KEY_SECRET         # secret: only ever set here, never in git
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET     # the secret typed into Razorpay's webhook settings
+        sync: false
 
   - type: web
     name: smartwallet-notification
@@ -90,4 +99,19 @@ services:
       - key: WALLET_SERVICE_URL
         sync: false
       - key: NOTIFICATION_SERVICE_URL
+        sync: false
+      # The frontend's public URL, e.g. https://smartwallet-web.onrender.com (browsers on other sites are refused)
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+  # React frontend, built by Vite and served as static files
+  - type: web
+    name: smartwallet-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # The gateway's public URL, e.g. https://smartwallet-gateway.onrender.com (read at build time)
+      - key: VITE_API_URL
         sync: false

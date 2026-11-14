@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vardhan.common.events.TransferCompletedEvent;
 import com.vardhan.common.web.BusinessException;
+import com.vardhan.wallet.idempotency.IdempotencyKeys;
 import com.vardhan.wallet.idempotency.IdempotencyRecord;
 import com.vardhan.wallet.idempotency.IdempotencyRecordRepository;
 import com.vardhan.wallet.ledger.EntryType;
@@ -38,8 +39,6 @@ import java.util.UUID;
 @Service
 public class TransferService {
 
-    private static final int MAX_KEY_LENGTH = 100;
-
     private final WalletRepository walletRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final WalletLocker walletLocker;
@@ -63,7 +62,7 @@ public class TransferService {
 
     @Transactional
     public TransferResult transfer(Long senderUserId, String idempotencyKey, TransferRequest request) {
-        String key = validateKey(idempotencyKey);
+        String key = IdempotencyKeys.validate(idempotencyKey);
         String toEmail = request.toEmail().trim().toLowerCase(Locale.ROOT);
         BigDecimal amount = request.amount();
         String requestHash = fingerprint(toEmail, amount, request.note());
@@ -125,11 +124,10 @@ public class TransferService {
 
     private TransferResult replay(IdempotencyRecord record, String requestHash) {
         if (!record.matches(requestHash)) {
-            throw new BusinessException(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED",
-                    "This Idempotency-Key was already used for a different request");
+            throw IdempotencyKeys.reused();
         }
         if (record.getResponseBody() == null) {
-            throw inProgress();
+            throw IdempotencyKeys.inProgress();
         }
         try {
             return new TransferResult(objectMapper.readValue(record.getResponseBody(), TransferResponse.class), true);
@@ -142,25 +140,8 @@ public class TransferService {
         try {
             return idempotencyRepository.saveAndFlush(new IdempotencyRecord(userId, key, requestHash));
         } catch (DataIntegrityViolationException e) {
-            throw inProgress();
+            throw IdempotencyKeys.inProgress();
         }
-    }
-
-    private static BusinessException inProgress() {
-        return new BusinessException(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_IN_PROGRESS",
-                "A request with this Idempotency-Key is already being processed; retry shortly");
-    }
-
-    private static String validateKey(String key) {
-        if (key == null || key.isBlank()) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "MISSING_IDEMPOTENCY_KEY", "Idempotency-Key header is required");
-        }
-        String trimmed = key.trim();
-        if (trimmed.length() > MAX_KEY_LENGTH) {
-            throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_IDEMPOTENCY_KEY",
-                    "Idempotency-Key must be at most " + MAX_KEY_LENGTH + " characters");
-        }
-        return trimmed;
     }
 
     /** SHA-256 of the meaningful request fields, so "500" and "500.00" count as the same request. */

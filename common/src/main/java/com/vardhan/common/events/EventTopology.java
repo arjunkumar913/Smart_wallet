@@ -14,12 +14,15 @@ public final class EventTopology {
     // routing keys
     public static final String USER_REGISTERED = "user.registered";
     public static final String TRANSFER_COMPLETED = "transfer.completed";
+    public static final String TOP_UP_COMPLETED = "topup.completed";
 
     // queues (named <consumer>.<event>.queue) and their dead-letter queues
     public static final String WALLET_USER_REGISTERED_QUEUE = "wallet.user-registered.queue";
     public static final String WALLET_USER_REGISTERED_DLQ = "wallet.user-registered.dlq";
     public static final String NOTIFICATION_TRANSFER_COMPLETED_QUEUE = "notification.transfer-completed.queue";
     public static final String NOTIFICATION_TRANSFER_COMPLETED_DLQ = "notification.transfer-completed.dlq";
+    public static final String NOTIFICATION_TOP_UP_COMPLETED_QUEUE = "notification.topup-completed.queue";
+    public static final String NOTIFICATION_TOP_UP_COMPLETED_DLQ = "notification.topup-completed.dlq";
 
     private EventTopology() {
     }

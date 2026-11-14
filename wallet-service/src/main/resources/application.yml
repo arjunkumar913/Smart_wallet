@@ -35,6 +35,16 @@ app:
   wallet:
     max-top-up: 50000.00
     max-transfer: 100000.00
+  payments:
+    # mock = built-in demo bank (no account needed) · razorpay = Razorpay test or live mode
+    provider: ${PAYMENT_PROVIDER:mock}
+    razorpay:
+      key-id: ${RAZORPAY_KEY_ID:}                   # rzp_test_... (public, sent to the browser)
+      key-secret: ${RAZORPAY_KEY_SECRET:}           # never leaves the server
+      webhook-secret: ${RAZORPAY_WEBHOOK_SECRET:}   # the secret typed into Razorpay's webhook settings
+    reconcile-interval-ms: 60000      # how often the reconciliation job runs
+    reconcile-after-seconds: 120      # leave a top-up to the webhook for this long before asking the gateway
+    pending-timeout-minutes: 30       # an unpaid top-up expires after this
 
 management:
   endpoints:

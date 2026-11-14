@@ -14,8 +14,11 @@ import org.springframework.context.annotation.Configuration;
 
 import static com.vardhan.common.events.EventTopology.DEAD_LETTER_EXCHANGE;
 import static com.vardhan.common.events.EventTopology.EXCHANGE;
+import static com.vardhan.common.events.EventTopology.NOTIFICATION_TOP_UP_COMPLETED_DLQ;
+import static com.vardhan.common.events.EventTopology.NOTIFICATION_TOP_UP_COMPLETED_QUEUE;
 import static com.vardhan.common.events.EventTopology.NOTIFICATION_TRANSFER_COMPLETED_DLQ;
 import static com.vardhan.common.events.EventTopology.NOTIFICATION_TRANSFER_COMPLETED_QUEUE;
+import static com.vardhan.common.events.EventTopology.TOP_UP_COMPLETED;
 import static com.vardhan.common.events.EventTopology.TRANSFER_COMPLETED;
 import static com.vardhan.common.events.EventTopology.USER_REGISTERED;
 import static com.vardhan.common.events.EventTopology.WALLET_USER_REGISTERED_DLQ;
@@ -51,14 +54,19 @@ public class MessagingConfig {
         Queue userRegisteredDlq = QueueBuilder.durable(WALLET_USER_REGISTERED_DLQ).build();
         Queue transferCompleted = queueWithDeadLetter(NOTIFICATION_TRANSFER_COMPLETED_QUEUE, NOTIFICATION_TRANSFER_COMPLETED_DLQ);
         Queue transferCompletedDlq = QueueBuilder.durable(NOTIFICATION_TRANSFER_COMPLETED_DLQ).build();
+        Queue topUpCompleted = queueWithDeadLetter(NOTIFICATION_TOP_UP_COMPLETED_QUEUE, NOTIFICATION_TOP_UP_COMPLETED_DLQ);
+        Queue topUpCompletedDlq = QueueBuilder.durable(NOTIFICATION_TOP_UP_COMPLETED_DLQ).build();
 
         return new Declarables(
                 events, deadLetters,
                 userRegistered, userRegisteredDlq, transferCompleted, transferCompletedDlq,
+                topUpCompleted, topUpCompletedDlq,
                 BindingBuilder.bind(userRegistered).to(events).with(USER_REGISTERED),
                 BindingBuilder.bind(userRegisteredDlq).to(deadLetters).with(WALLET_USER_REGISTERED_DLQ),
                 BindingBuilder.bind(transferCompleted).to(events).with(TRANSFER_COMPLETED),
-                BindingBuilder.bind(transferCompletedDlq).to(deadLetters).with(NOTIFICATION_TRANSFER_COMPLETED_DLQ));
+                BindingBuilder.bind(transferCompletedDlq).to(deadLetters).with(NOTIFICATION_TRANSFER_COMPLETED_DLQ),
+                BindingBuilder.bind(topUpCompleted).to(events).with(TOP_UP_COMPLETED),
+                BindingBuilder.bind(topUpCompletedDlq).to(deadLetters).with(NOTIFICATION_TOP_UP_COMPLETED_DLQ));
     }
 
     private static Queue queueWithDeadLetter(String name, String deadLetterRoutingKey) {
