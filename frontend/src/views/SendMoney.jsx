@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { api } from '../api.js';
+import { celebrateTransfer } from '../Starfield.jsx';
 import { money, newKey } from '../format.js';
 
 export default function SendMoney({ go }) {
@@ -26,6 +27,7 @@ export default function SendMoney({ go }) {
     setError(null);
     try {
       setSent(await api.transfer(toEmail.trim(), value, note.trim(), attempt.current.key));
+      celebrateTransfer();
     } catch (e) {
       setError(e.message);
     } finally {

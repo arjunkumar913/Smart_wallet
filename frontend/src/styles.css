@@ -1,21 +1,26 @@
-/* Smart Wallet. The look comes from a bank passbook: ruled paper, columns of figures,
-   blue pen for what the bank writes, red for money going out. */
+/* Smart Wallet. A passbook floating in deep space: the ledger keeps its ruled columns of figures,
+   while behind it a galaxy of stars passes money from one star to another. Starlight gold marks the
+   actions that move money; green and red keep their ledger meaning. */
 
 :root {
-  --ground: #e6ebf3;
-  --paper: #fbfcfe;
-  --ink: #14213d;
-  --ink-soft: #4a5876;
-  --rule: #c5cfde;
-  --rule-soft: #dde4ee;
-  --pen: #2443c9;
-  --pen-deep: #1a328f;
-  --deposit: #0a6e4e;
-  --withdraw: #b3261e;
-  --wait: #8a5a00;
-  --tint-good: #e3f3ec;
-  --tint-problem: #fbe9e7;
-  --tint-wait: #fbf1da;
+  color-scheme: dark;
+  --void: #050716;
+  --paper: rgba(12, 17, 40, 0.74);
+  --field: rgba(4, 7, 22, 0.82);
+  --ink: #e9edfb;
+  --ink-soft: #9ba6c9;
+  --rule: rgba(160, 180, 240, 0.24);
+  --rule-soft: rgba(160, 180, 240, 0.12);
+  --pen: #ffce6e;
+  --pen-deep: #ffdd99;
+  --on-pen: #1c1404;
+  --link: #b8c6ff;
+  --deposit: #5fe0a8;
+  --withdraw: #ff8a80;
+  --wait: #ffb870;
+  --tint-good: rgba(95, 224, 168, 0.12);
+  --tint-problem: rgba(255, 138, 128, 0.12);
+  --tint-wait: rgba(255, 184, 112, 0.12);
 
   --display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif;
   --text: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -34,7 +39,7 @@
 
 body {
   margin: 0;
-  background: var(--ground);
+  background: var(--void);
   color: var(--ink);
   font-family: var(--text);
   font-size: var(--step-0);
@@ -97,6 +102,32 @@ ol, ul { padding: 0; list-style: none; }
   white-space: nowrap;
 }
 
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--void);
+  overflow: hidden;
+}
+.sky canvas { position: absolute; inset: 0; }
+/* the galaxy's glow: violet core, a teal arm, a faint rose cloud */
+.nebula {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 45% 35% at 22% 22%, rgba(110, 72, 200, 0.30), transparent 70%),
+    radial-gradient(ellipse 50% 32% at 84% 74%, rgba(24, 120, 160, 0.24), transparent 70%),
+    radial-gradient(ellipse 30% 25% at 58% 40%, rgba(200, 90, 160, 0.12), transparent 70%);
+}
+/* soft light behind the dense band of stars, lower left to upper right */
+.milky-way {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top right,
+    transparent 30%, rgba(150, 160, 255, 0.07) 42%, rgba(210, 200, 255, 0.15) 50%,
+    rgba(150, 160, 255, 0.07) 58%, transparent 70%);
+}
+
 .waking {
   background: var(--tint-wait);
   color: var(--wait);
@@ -118,16 +149,16 @@ ol, ul { padding: 0; list-style: none; }
   transition: background-color 120ms ease;
 }
 
-.button.primary { background: var(--pen); color: #fff; }
+.button.primary { background: var(--pen); color: var(--on-pen); box-shadow: 0 0 22px rgba(255, 206, 110, 0.28); }
 .button.primary:hover:not(:disabled) { background: var(--pen-deep); border-color: var(--pen-deep); }
 .button.secondary { background: transparent; color: var(--pen); }
-.button.secondary:hover:not(:disabled) { background: #dfe6fa; }
+.button.secondary:hover:not(:disabled) { background: rgba(255, 206, 110, 0.1); }
 .button:disabled { opacity: 0.5; cursor: not-allowed; }
 .button.wide { width: 100%; }
 
 .link {
   font: inherit;
-  color: var(--pen);
+  color: var(--link);
   background: none;
   border: 0;
   padding: 0;
@@ -137,7 +168,7 @@ ol, ul { padding: 0; list-style: none; }
   text-align: left;
 }
 .link:disabled { opacity: 0.5; cursor: not-allowed; }
-a { color: var(--pen); text-underline-offset: 3px; }
+a { color: var(--link); text-underline-offset: 3px; }
 
 .field {
   display: block;
@@ -159,16 +190,16 @@ input {
   color: var(--ink);
   width: 100%;
   padding: 0.7rem 0.8rem;
-  background: #fff;
+  background: var(--field);
   border: 1.5px solid var(--rule);
   border-radius: var(--radius);
 }
-input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #2443c933; }
+input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px rgba(255, 206, 110, 0.22); }
 
 .amount-input {
   display: flex;
   align-items: center;
-  background: #fff;
+  background: var(--field);
   border: 1.5px solid var(--rule);
   border-radius: var(--radius);
   padding-left: 0.8rem;
@@ -176,7 +207,7 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   font-size: var(--step-2);
   font-weight: 600;
 }
-.amount-input:focus-within { border-color: var(--pen); box-shadow: 0 0 0 3px #2443c933; }
+.amount-input:focus-within { border-color: var(--pen); box-shadow: 0 0 0 3px rgba(255, 206, 110, 0.22); }
 .amount-input input {
   border: 0;
   background: transparent;
@@ -207,9 +238,9 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   border-left: 4px solid;
   margin-bottom: 1.125rem;
 }
-.message.good { background: var(--tint-good); border-color: var(--deposit); color: #07503a; }
-.message.problem { background: var(--tint-problem); border-color: var(--withdraw); color: #8a1c16; }
-.message.waiting { background: var(--tint-wait); border-color: var(--wait); color: #6b4500; }
+.message.good { background: var(--tint-good); border-color: var(--deposit); color: #c9f7e2; }
+.message.problem { background: var(--tint-problem); border-color: var(--withdraw); color: #ffd6d2; }
+.message.waiting { background: var(--tint-wait); border-color: var(--wait); color: #ffe2c4; }
 
 .hint, .quiet { color: var(--ink-soft); font-size: var(--step--1); }
 .quiet { padding: 2rem 0; }
@@ -222,6 +253,8 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   padding: 1.5rem;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .panel.narrow { max-width: 30rem; }
 .panel h1 {
@@ -276,6 +309,7 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
   margin-bottom: 1.25rem;
+  text-shadow: 0 0 28px rgba(184, 198, 255, 0.35);
 }
 .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
 
@@ -286,6 +320,8 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   overflow: hidden;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .tabs {
@@ -378,7 +414,7 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   border-radius: var(--radius);
   padding: 1rem 1.125rem 1.125rem;
   margin-bottom: 1.5rem;
-  background: #fff;
+  background: var(--field);
 }
 .bank-head {
   display: flex;
@@ -412,7 +448,7 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   place-items: center;
   border-radius: 50%;
   border: 1.5px solid var(--rule);
-  background: var(--paper);
+  background: #0c1128;
   color: var(--ink-soft);
   font-size: var(--step--1);
   font-weight: 600;
@@ -427,16 +463,16 @@ input:focus { border-color: var(--pen); outline: none; box-shadow: 0 0 0 3px #24
   background: var(--rule);
 }
 .steps li:last-child::after { display: none; }
-.steps li.done::before { content: '✓'; background: var(--deposit); border-color: var(--deposit); color: #fff; }
+.steps li.done::before { content: '✓'; background: var(--deposit); border-color: var(--deposit); color: #05271a; }
 .steps li.done::after { background: var(--deposit); }
-.steps li.failed::before { content: '✕'; background: var(--withdraw); border-color: var(--withdraw); color: #fff; }
+.steps li.failed::before { content: '✕'; background: var(--withdraw); border-color: var(--withdraw); color: #330a07; }
 .steps li.active::before { border-color: var(--pen); color: var(--pen); animation: pulse 1.4s ease-in-out infinite; }
 .step-title { font-weight: 600; }
 .steps li.waiting .step-title, .steps li.skipped .step-title { color: var(--ink-soft); font-weight: 500; }
 .step-note { color: var(--ink-soft); font-size: var(--step--1); }
 
 @keyframes pulse {
-  50% { box-shadow: 0 0 0 6px #2443c926; }
+  50% { box-shadow: 0 0 0 6px rgba(255, 206, 110, 0.25); }
 }
 
 .details { border-top: 1px solid var(--rule-soft); margin-bottom: 1.5rem; }

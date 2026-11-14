@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { dateTime, money } from '../format.js';
 import { isTestKey, openRazorpay } from '../razorpay.js';
+import { celebrateTransfer } from '../Starfield.jsx';
 
 const POLL_MS = 2000;
 // If the bank's confirmation has not reached the server after this long, ask the bank directly.
@@ -51,6 +52,7 @@ export default function TopUp({ id, email, go }) {
 
   useEffect(() => {
     if (topUp?.status !== 'SUCCESS') return;
+    celebrateTransfer();
     let current = true;
     api.wallet({ quiet: true }).then((wallet) => current && setBalance(wallet.balance)).catch(() => {});
     return () => { current = false; };

@@ -42,7 +42,7 @@ export default function SignIn({ onSignedIn, notice }) {
   return (
     <section className="signin">
       <div className="signin-intro">
-        <h1>Money in, money out, every entry on the page.</h1>
+        <h1>Money in, money out, anywhere in the universe.</h1>
         <p>
           Add money through a payment gateway, send it to another wallet, and watch each
           movement land in your passbook the moment the bank confirms it.

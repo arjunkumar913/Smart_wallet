@@ -5,6 +5,7 @@ import Home from './views/Home.jsx';
 import AddMoney from './views/AddMoney.jsx';
 import TopUp from './views/TopUp.jsx';
 import SendMoney from './views/SendMoney.jsx';
+import Starfield from './Starfield.jsx';
 
 const SESSION_KEY = 'smart-wallet-session';
 
@@ -65,6 +66,8 @@ export default function App() {
   };
 
   return (
+    <>
+    <Starfield />
     <div className="page">
       <header className="masthead">
         <button type="button" className="wordmark" onClick={() => session && go('home')}>
@@ -97,6 +100,7 @@ export default function App() {
         <a href="https://github.com/arjunkumar913/Smart_wallet" target="_blank" rel="noreferrer">Source on GitHub</a>
       </footer>
     </div>
+    </>
   );
 }
 
