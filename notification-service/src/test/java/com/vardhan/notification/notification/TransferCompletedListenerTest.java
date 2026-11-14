@@ -1,6 +1,10 @@
 package com.vardhan.notification.notification;
 
 import com.vardhan.common.events.TransferCompletedEvent;
+import com.vardhan.notification.email.EmailComposer;
+import com.vardhan.notification.email.EmailMessage;
+import com.vardhan.notification.email.EmailOutboxService;
+import com.vardhan.notification.email.TestEmailProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -21,6 +25,7 @@ import static org.mockito.Mockito.when;
 class TransferCompletedListenerTest {
 
     private NotificationRepository repository;
+    private EmailOutboxService emails;
     private TransferCompletedListener listener;
 
     private final TransferCompletedEvent event = new TransferCompletedEvent(UUID.randomUUID(), UUID.randomUUID(),
@@ -29,7 +34,8 @@ class TransferCompletedListenerTest {
     @BeforeEach
     void setUp() {
         repository = mock(NotificationRepository.class);
-        listener = new TransferCompletedListener(repository);
+        emails = mock(EmailOutboxService.class);
+        listener = new TransferCompletedListener(repository, emails, new EmailComposer(TestEmailProperties.defaults()));
     }
 
     @Test
@@ -45,12 +51,26 @@ class TransferCompletedListenerTest {
     }
 
     @Test
+    void newEvent_emailsSenderAndRecipient() {
+        listener.onTransferCompleted(event);
+
+        ArgumentCaptor<EmailMessage> queued = ArgumentCaptor.forClass(EmailMessage.class);
+        verify(emails).enqueue(eq(event.eventId()), eq(1L), queued.capture());
+        verify(emails).enqueue(eq(event.eventId()), eq(2L), queued.capture());
+        assertThat(queued.getAllValues()).extracting(EmailMessage::to).containsExactly("vardhan@test.com", "friend@test.com");
+        assertThat(queued.getAllValues()).extracting(EmailMessage::subject).containsExactly(
+                "You sent ₹250.00 to friend@test.com",
+                "You received ₹250.00 from vardhan@test.com");
+    }
+
+    @Test
     void redeliveredEvent_createsNothing() {
         when(repository.existsByEventIdAndUserId(eq(event.eventId()), any())).thenReturn(true);
 
         listener.onTransferCompleted(event);
 
         verify(repository, never()).save(any());
+        verify(emails, never()).enqueue(any(), any(), any());
     }
 
     @Test
@@ -62,6 +82,8 @@ class TransferCompletedListenerTest {
         ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
         verify(repository, times(1)).save(saved.capture());
         assertThat(saved.getValue().getUserId()).isEqualTo(2L);
+        verify(emails, never()).enqueue(any(), eq(1L), any());
+        verify(emails).enqueue(eq(event.eventId()), eq(2L), any());
     }
 
     @Test

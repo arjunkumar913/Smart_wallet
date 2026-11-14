@@ -32,6 +32,23 @@ spring:
 app:
   jwt:
     secret: ${JWT_SECRET:change-me-to-a-long-random-secret-of-at-least-32-bytes}
+  email:
+    # "log" prints each email to the console (no account needed). "brevo" sends real email over Brevo's HTTPS API.
+    provider: ${EMAIL_PROVIDER:log}
+    from-address: ${EMAIL_FROM_ADDRESS:no-reply@smartwallet.dev}   # with brevo: a sender verified in your Brevo account
+    from-name: ${EMAIL_FROM_NAME:Smart Wallet}
+    app-url: ${APP_URL:http://localhost:5173}                       # linked from every email
+    time-zone: ${EMAIL_TIME_ZONE:Asia/Kolkata}
+    skip-domains: ${EMAIL_SKIP_DOMAINS:demo.smartwallet.dev}        # demo accounts have made-up addresses
+    brevo:
+      api-key: ${BREVO_API_KEY:}
+    dispatch:
+      enabled: true
+      interval-ms: 5000
+      batch-size: 20
+      max-attempts: 6               # then the email is marked FAILED; the in-app notification is unaffected
+      first-retry-seconds: 30       # 30s, 1m, 2m, 4m, 8m between attempts
+      lease-seconds: 120            # a claimed email whose sender crashed is picked up again after this
 
 management:
   endpoints:

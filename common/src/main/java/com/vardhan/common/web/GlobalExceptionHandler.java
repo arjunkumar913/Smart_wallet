@@ -5,6 +5,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -60,6 +64,27 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of("MISSING_HEADER", "Required header '" + ex.getHeaderName() + "' is missing"));
+    }
+
+    /**
+     * Spring's own client errors (unknown URL, wrong HTTP method, unsupported content type...) carry their
+     * status. Without this they fell through to the catch-all and came back as 500, as if the server had broken.
+     */
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class, NoResourceFoundException.class,
+            HttpMediaTypeNotSupportedException.class, HttpMediaTypeNotAcceptableException.class})
+    public ResponseEntity<ErrorResponse> handleSpringClientError(Exception ex) {
+        HttpStatus status = ex instanceof org.springframework.web.ErrorResponse spring
+                ? HttpStatus.resolve(spring.getStatusCode().value()) : null;
+        if (status == null || status.is5xxServerError()) {
+            return handleUnexpected(ex);
+        }
+        String message = switch (status) {
+            case NOT_FOUND -> "No such endpoint";
+            case METHOD_NOT_ALLOWED -> "This endpoint does not accept that HTTP method";
+            case UNSUPPORTED_MEDIA_TYPE -> "Send the request body as application/json";
+            default -> status.getReasonPhrase();
+        };
+        return ResponseEntity.status(status).body(ErrorResponse.of(status.name(), message));
     }
 
     @ExceptionHandler(Exception.class)

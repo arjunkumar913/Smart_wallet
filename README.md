@@ -1,6 +1,6 @@
 # Smart Wallet — Digital Wallet & Payments Microservices
 
-A digital wallet built as **Spring Boot microservices** (Java 21) with a small **React** frontend, focused on the hard parts of payment systems: **double-entry ledgering, idempotent transfers, payment-gateway top-ups that credit exactly once, concurrency safety, and event-driven communication over RabbitMQ**.
+A digital wallet built as **Spring Boot microservices** (Java 21) with a small **React** frontend, focused on the hard parts of payment systems: **double-entry ledgering, idempotent transfers, payment-gateway top-ups that credit exactly once, concurrency safety, event-driven communication over RabbitMQ, and email notifications through a transactional outbox**.
 
 ## 🌐 Live demo
 
@@ -36,6 +36,7 @@ flowchart LR
     MQ -- user.registered --> WAL
     MQ -- transfer.completed, topup.completed --> NOTIF
     MQ -.failed after retries.-> DLQ[(dead-letter queues)]
+    NOTIF -- email outbox, retries --> MAIL([Email provider<br/>Brevo or console log])
 ```
 
 | Service | Responsibility | Database |
@@ -43,7 +44,7 @@ flowchart LR
 | **api-gateway** | Single entry point; routes requests to services (Spring Cloud Gateway) | — |
 | **auth-service** | Register, login, JWT issuing, roles (USER / ADMIN) | `auth_db` |
 | **wallet-service** | Wallets, payment-gateway top-ups, transfers, double-entry ledger, idempotency, locking, admin freeze | `wallet_db` |
-| **notification-service** | Consumes transfer and top-up events, stores notifications idempotently | `notification_db` |
+| **notification-service** | Consumes transfer and top-up events; stores in-app notifications and emails both people, each exactly once per event | `notification_db` |
 | **frontend** | React + Vite single-page app: sign in, balance, add money, send money, passbook | — |
 | **common** (library) | Shared event contracts, JWT verification, error format, RabbitMQ JSON config | — |
 
@@ -106,6 +107,34 @@ keys. It sends the same signed webhook format through the same code path as Razo
 payment or to "lose" the webhook so the reconciliation path can be seen working. Set `PAYMENT_PROVIDER=razorpay` with
 test keys to use Razorpay's real checkout (UPI, cards, netbanking) in test mode.
 
+### Email notifications (transactional outbox)
+
+Every transfer emails **both** people (sender and recipient), and every top-up emails the wallet owner, alongside the
+in-app notification. The email is written to an `email_outbox` table **in the same transaction** as the in-app
+notification, then a dispatcher sends it, so a slow or failing email provider never blocks or loses anything.
+
+```mermaid
+sequenceDiagram
+    participant MQ as RabbitMQ
+    participant N as notification-service
+    participant DB as notification_db
+    participant E as Email provider
+
+    MQ->>N: transfer.completed (at-least-once)
+    N->>DB: BEGIN, notification for sender + recipient, email_outbox rows (unique per event and person), COMMIT
+    loop every 5 seconds
+        N->>DB: claim due emails: UPDATE ... SET status = SENDING WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED), COMMIT
+        N->>E: send (no DB transaction open)
+        alt accepted
+            N->>DB: SENT
+        else timeout, 429 or 5xx
+            N->>DB: PENDING, retry in 30s, 1m, 2m, 4m, 8m (then FAILED)
+        else rejected (bad address or key)
+            N->>DB: FAILED, never retried
+        end
+    end
+```
+
 ### Transfer flow (one ACID transaction inside wallet-service)
 
 ```mermaid
@@ -150,6 +179,10 @@ sequenceDiagram
 - **Exactly-once credit under at-least-once delivery.** Gateways retry webhooks, and the webhook, the browser callback and the reconciliation job can all arrive together. Each one locks the `top_ups` row (`FOR UPDATE`) and credits only if it is not already `SUCCESS`; a unique index on the gateway's payment id and a `CHECK` that ties `SUCCESS` to a ledger transaction back this up in the database.
 - **No database transaction held open across an HTTP call.** Creating a top-up commits the row first, then calls the gateway, then stores the order id. A crash in between leaves a `CREATED` row that the reconciliation job expires, never a locked wallet.
 - **A late success still wins.** `FAILED` and `EXPIRED` are not final: if the gateway later reports the payment as captured, the customer was charged, so the wallet is credited. Only `SUCCESS` is final. A paid amount that differs from the order is never credited.
+- **Email through a transactional outbox, not inside the event handler.** The email row commits with the in-app notification, so neither exists without the other; sending happens afterwards, outside any transaction. A unique index on (event, person) means a redelivered event can never queue a second email.
+- **Safe with several instances.** The dispatcher claims emails with `FOR UPDATE SKIP LOCKED` and a lease, so two instances never send the same email, and an email claimed by an instance that crashed is picked up again when its lease runs out. Delivery is at-least-once: the one window for a duplicate is a crash after the provider accepted the email but before it was marked sent.
+- **Retry only what can succeed.** Timeouts, 429 and 5xx are retried with exponential backoff; a rejected address or bad API key fails at once, so the provider is not hammered with requests that will fail again.
+- **Email over HTTPS, not SMTP.** Many free hosts (Render included) block outgoing SMTP ports, so real emails go through Brevo's HTTPS API. Locally the default sender just prints each email to the console.
 - **Payment gateway behind an interface.** `PaymentGateway` has two implementations (Razorpay over plain REST, and the demo bank), chosen by one property, so the settlement logic is tested end to end without network access or secrets.
 
 ---
@@ -169,14 +202,15 @@ sequenceDiagram
 | 9 | Admin APIs to list, freeze / unfreeze wallets (SYSTEM wallet protected) | ✅ Done |
 | 10 | **Payment-gateway top-ups** (Razorpay test mode or built-in demo bank): signed webhooks, browser confirm, reconciliation job, exactly-once credit | ✅ Done |
 | 11 | `TopUpCompleted` events → "money added" notifications | ✅ Done |
-| 12 | **React frontend**: demo account, balance, add money, send money, passbook, alerts | ✅ Done |
-| 13 | Liquibase, OpenAPI per service, 55 automated tests, Docker Compose, live cloud deployment | ✅ Done |
+| 12 | **Email notifications** to sender and recipient via a transactional outbox: retries with backoff, multi-instance safe, Brevo or console | ✅ Done |
+| 13 | **React frontend**: demo account, balance, add money, send money, passbook, alerts | ✅ Done |
+| 14 | Liquibase, OpenAPI per service, 82 automated tests, Docker Compose, live cloud deployment | ✅ Done |
 
 ---
 
 ## 🛠️ Tech Stack
 
-Java 21 · Spring Boot 3.3 · Spring Cloud Gateway · Spring Security (JWT) · Spring Data JPA · PostgreSQL 16 · Liquibase · RabbitMQ · Razorpay Orders API · springdoc-openapi · JUnit 5 · Mockito · Testcontainers · Docker Compose · React 19 · Vite
+Java 21 · Spring Boot 3.3 · Spring Cloud Gateway · Spring Security (JWT) · Spring Data JPA · PostgreSQL 16 · Liquibase · RabbitMQ · Razorpay Orders API · Brevo email API · springdoc-openapi · JUnit 5 · Mockito · Testcontainers · Docker Compose · React 19 · Vite
 
 ---
 
@@ -276,6 +310,22 @@ Run all tests: `mvn test` (Docker must be running: integration tests start a rea
 | Wallet is frozen after the customer has paid | Still credited: the customer was charged |
 | Sum of all wallet balances after every test | Always exactly 0 |
 
+### Tested guarantees for email (`EmailOutboxIntegrationTest`, real PostgreSQL)
+
+| Scenario | Result |
+|---|---|
+| A transfer event delivered twice | Sender and recipient each get exactly one email |
+| 4 dispatchers running at once over 60 queued emails | Every email sent exactly once |
+| Provider times out once | Retried after 30 s, then sent |
+| Provider rejects the address | Failed at once, never sent again |
+| Provider down for good | Gives up after 6 attempts, marked `FAILED` |
+| Dispatcher crashes after claiming an email | Picked up again when its lease runs out |
+| One email keeps failing | The others are still sent |
+| Demo account (`@demo.smartwallet.dev`) | In-app notification only, no email |
+
+Emails print to the notification-service console by default. To send real emails, set `EMAIL_PROVIDER=brevo`,
+`BREVO_API_KEY` and `EMAIL_FROM_ADDRESS` (see [DEPLOYMENT.md](DEPLOYMENT.md)).
+
 Default admin (local only): `admin@smartwallet.dev` / `Admin@12345` · RabbitMQ UI: `http://localhost:15672` (guest / guest)
 
 ---
@@ -287,6 +337,7 @@ Default admin (local only): `admin@smartwallet.dev` / `Admin@12345` · RabbitMQ 
 - [x] Day 3 — TransferCompleted events → notifications, DLQ, admin freeze, history API
 - [x] Day 4 — Live deployment (Render Blueprint, Neon, CloudAMQP)
 - [x] Day 5 — Payment-gateway top-ups (webhook + confirm + reconciliation, exactly-once credit), React frontend
+- [x] Day 6 — Email notifications through a transactional outbox (Brevo), 404/405 instead of 500 for bad URLs
 - [ ] Later — transactional outbox, rate limiting at the gateway, refunds, withdrawals to a bank account
 
 ---

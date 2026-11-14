@@ -1,0 +1,44 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-email-outbox
+      author: vardhankumar-mekala
+      changes:
+        # Transactional outbox: the email row is written in the same transaction as the in-app notification,
+        # then a dispatcher sends it. Email provider downtime never loses an email and never blocks a notification.
+        - createTable:
+            tableName: email_outbox
+            columns:
+              - column: { name: id, type: BIGSERIAL, constraints: { primaryKey: true } }
+              - column: { name: event_id, type: UUID, constraints: { nullable: false } }
+              - column: { name: user_id, type: BIGINT, constraints: { nullable: false } }
+              - column: { name: recipient, type: VARCHAR(320), constraints: { nullable: false } }
+              - column: { name: subject, type: VARCHAR(300), constraints: { nullable: false } }
+              - column: { name: text_body, type: TEXT, constraints: { nullable: false } }
+              - column: { name: html_body, type: TEXT, constraints: { nullable: false } }
+              - column: { name: status, type: VARCHAR(16), constraints: { nullable: false } }
+              - column: { name: attempts, type: INT, defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: next_attempt_at, type: TIMESTAMPTZ, constraints: { nullable: false } }
+              - column: { name: last_error, type: VARCHAR(500) }
+              - column: { name: provider_message_id, type: VARCHAR(200) }
+              - column: { name: created_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: { nullable: false } }
+              - column: { name: sent_at, type: TIMESTAMPTZ }
+        # one email per person per event: a redelivered event can never queue a second email
+        - addUniqueConstraint:
+            tableName: email_outbox
+            columnNames: event_id, user_id
+            constraintName: uq_email_event_user
+        - sql:
+            sql: >
+              ALTER TABLE email_outbox ADD CONSTRAINT chk_email_status
+              CHECK (status IN ('PENDING', 'SENDING', 'SENT', 'FAILED'))
+        - sql:
+            sql: >
+              ALTER TABLE email_outbox ADD CONSTRAINT chk_email_sent_at
+              CHECK ((status = 'SENT') = (sent_at IS NOT NULL))
+        # the dispatcher's query: due emails that are waiting or whose sender lease ran out
+        - createIndex:
+            tableName: email_outbox
+            indexName: idx_email_due
+            columns:
+              - column: { name: status }
+              - column: { name: next_attempt_at }

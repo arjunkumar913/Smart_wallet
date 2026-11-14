@@ -6,6 +6,7 @@
 | PostgreSQL (3 databases) | **Neon** | Free Postgres that does not expire; scales to zero when idle |
 | RabbitMQ | **CloudAMQP** — Little Lemur | Free managed RabbitMQ, no card required |
 | React frontend | **Render** — static site, also in `render.yaml` | Free, served from a CDN, never sleeps |
+| Email (optional) | **Brevo** — free plan, 300 emails a day | Sends over HTTPS; Render's free plan blocks SMTP ports |
 | Payments (optional) | **Razorpay** test mode | Real checkout with UPI, cards and netbanking; no real money, no KYC for test keys |
 
 ## 1. Neon — databases
@@ -38,6 +39,9 @@
 | `CORS_ALLOWED_ORIGINS` (gateway) | the static site's URL, e.g. `https://smartwallet-web.onrender.com` |
 | `PAYMENT_PROVIDER` (wallet) | leave as `mock` for the built-in demo bank, or `razorpay` (see section 4) |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET` (wallet) | leave empty unless `PAYMENT_PROVIDER=razorpay` |
+| `EMAIL_PROVIDER` (notification) | leave as `log` (emails go to the service log), or `brevo` (see section 5) |
+| `APP_URL` (notification) | the frontend's public URL; every email links to it |
+| `BREVO_API_KEY` / `EMAIL_FROM_ADDRESS` (notification) | leave empty unless `EMAIL_PROVIDER=brevo` |
 
 3. Apply. The first build takes several minutes per service.
 4. Check each service's URL on its dashboard page. If Render added a suffix (e.g. `smartwallet-auth-x1y2.onrender.com`),
@@ -63,6 +67,21 @@ Without this step, **Add money** uses the built-in demo bank, which needs no acc
    payment).
 
 Never put the key secret or webhook secret in git or in the frontend. Only the key id is sent to the browser.
+
+## 5. Brevo — real emails (optional)
+
+Without this step, emails are printed to the notification-service log instead of being sent.
+
+1. Sign up at brevo.com (free plan: 300 emails a day).
+2. **Senders, Domains & Dedicated IPs → Senders → Add a sender**, using an address you own (your Gmail works),
+   and confirm it from the email Brevo sends you. Brevo only sends from verified senders.
+3. **SMTP & API → API Keys → Generate a new API key**. Copy it; it is shown once.
+4. On Render, open **smartwallet-notification → Environment** and set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`,
+   `EMAIL_FROM_ADDRESS` (the verified sender) and `APP_URL` (your frontend URL). Save; the service redeploys.
+5. Register in the app with a real email address and make a transfer. Demo accounts (`@demo.smartwallet.dev`)
+   never get emails.
+
+Free-plan emails from a Gmail sender often land in spam until you verify a domain of your own in Brevo.
 
 ## Free-tier behaviour to know
 

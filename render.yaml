@@ -83,6 +83,15 @@ services:
         sync: false
       - key: SPRING_RABBITMQ_ADDRESSES
         sync: false
+      # "log" = emails are written to the service log. "brevo" = real emails over HTTPS (Render's free plan blocks SMTP).
+      - key: EMAIL_PROVIDER
+        value: log
+      - key: BREVO_API_KEY               # secret: only ever set here, never in git
+        sync: false
+      - key: EMAIL_FROM_ADDRESS          # a sender verified in your Brevo account
+        sync: false
+      - key: APP_URL                     # the frontend's public URL, linked from every email
+        sync: false
 
   - type: web
     name: smartwallet-gateway
